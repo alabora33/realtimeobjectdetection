@@ -6,10 +6,8 @@ from PIL import Image, ImageTk
 from deep_translator import GoogleTranslator
 from database import connect_database, insert_data, retrieve_user_input
 
-# YOLOv4 modelini yükleyin
 net = cv2.dnn.readNet("yolov4.weights", "yolov4.cfg")
 
-# YOLOv4 sınıf etiketlerini yükleyin
 classes = []
 with open("coco.names", "r") as f:
     classes = f.read().strip().split("\n")
@@ -91,7 +89,6 @@ class ObjectDetectionApp:
     def detect_objects(self):
         ret, frame = self.cap.read()
 
-        # Eğer görüntü boşsa işlem yapmayı durdur
         if frame is None:
             return frame
 
@@ -128,7 +125,6 @@ class ObjectDetectionApp:
             if self.captured_image is not None:
                 frame[0:self.captured_image.shape[0], 0:self.captured_image.shape[1]] = self.captured_image
 
-            # Eğer frame boş değilse işlem yap
             if frame is not None:
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 self.photo = ImageTk.PhotoImage(image=Image.fromarray(frame_rgb))
@@ -142,39 +138,30 @@ class ObjectDetectionApp:
         if translation and self.cropped_object is not None:
             conn, cursor = connect_database()
 
-            # 1. Kullanıcının girdisi (User Input)
             user_input = translation
 
-            # 2. Algılanan nesnenin seçilen dildeki çevirisi ve kendisi
             translated_object_selected_lang = GoogleTranslator(source='en', target=self.selected_language).translate(self.current_object)
 
-            # 3. Algılanan nesnenin diğer bir dile çevirisi
             other_language_translation = ""
             for lang_code in ["tr", "de"]:
                 if lang_code != self.selected_language:
                     translation = GoogleTranslator(source='en', target=lang_code).translate(self.current_object)
                     other_language_translation += f"{lang_code}: {translation}\n"
 
-            # 4. Algılanan nesnenin bir diğer dile çevirisi
             if self.selected_language != "en":
                 translation = GoogleTranslator(source='en', target='en').translate(self.current_object)
                 other_language_translation += f"en: {translation}\n"
 
-            # Kullanıcı girdisi ile algılanan nesne çevirisini karşılaştırın ve puan ekleyin
             if user_input.lower() == translated_object_selected_lang.lower():
                 self.total_score += 10
 
-            # Veritabanına kullanıcı girdisini ve çevrilen nesneyi kaydedin
-            insert_data(conn, cursor, f"{user_input}", f"{translated_object_selected_lang}")
+            insert_data(conn, cursor, self.selected_username, user_input, translated_object_selected_lang)
 
             self.translation_entry.delete(0, tk.END)
 
-            # Veritabanından kullanıcı girdisini alın
             self.user_input_from_db = retrieve_user_input(conn, cursor)
 
-            self.translations_text.delete(1.0, tk.END)  # Önceki çevirileri temizle
-
-            # Kullanıcı girdisini ve çevirileri gösterin
+            self.translations_text.delete(1.0, tk.END)  
             self.translations_text.insert(tk.END, f"User ({self.selected_username}): {user_input}\n")
             self.translations_text.insert(tk.END, f"Object:\n{self.selected_language}: {translated_object_selected_lang}\n")
             self.translations_text.insert(tk.END, f"Object:\n{other_language_translation}\n")
@@ -205,7 +192,6 @@ class ObjectDetectionApp:
         if self.score_window:
             self.score_window.destroy()
 
-        # Kameralı sayfayı durdur
         self.cap.release()
 
         self.score_window = tk.Toplevel(self.root)
